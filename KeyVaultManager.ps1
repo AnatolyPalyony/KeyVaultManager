@@ -1,7 +1,8 @@
 Param (
     [parameter(Mandatory = $true )][string]$KeyVault = $(throw "KeyVault parameter is required."),
-    [Parameter(Mandatory = $false)][string]$ExportSecrets, # = $( Read-Host "Specify FilePath please" ),
-    [Parameter(Mandatory = $false)][string]$ImportSecrets, #= $( Read-Host "Specify FilePath please" )
+    [Parameter(Mandatory = $false)][System.IO.FileInfo]$ExportSecrets, # = $( Read-Host "Specify FilePath please" )
+    [Parameter(Mandatory = $false)][ValidateScript({if( -Not ($_ | Test-Path) ){throw "File or folder does not exist"}
+                    return $true})][System.IO.FileInfo]$ImportSecrets, # = $( Read-Host "Specify FilePath please" )
     [Parameter(Mandatory = $false)][bool]$DisableOld = $false ,
     [Parameter(Mandatory = $false)][bool]$ListSecrets = $false,
     [Parameter(Mandatory = $false)][ValidateLength(0, 32)][string]$Description
@@ -12,14 +13,20 @@ Function ExportSecrets {
         [parameter(Mandatory = $true)]
         [string] $KeyVaultName, 
         [parameter(Mandatory = $true)]
-        [string] $FileName
+        [System.IO.FileInfo] $FileName
     );
+    $Fullpath = Resolve-Path -Path $FileName.Directory
+    Write-Host "Exporting to $Fullpath"
+    if (!(Test-Path -Path $Fullpath -PathType Container )) {
+        Write-Host "Folder Not Found"
+        Write-Host "Check your filepath and try again please!"
+        exit
+    }
     Write-Host "Exporting to $FileName"
     $secrets = Get-AzKeyVaultSecret -VaultName $KeyVaultName 
     $keys = @{}
     foreach ($secret in $secrets) {
         $secretName = $secret.name
-       
         if ( $secret.Enabled ) {
             $keyvalue = (Get-AzKeyVaultSecret -VaultName $keyvaultName -name $secretName -AsPlainText)         
             $keys.Add("$secretName", "$keyvalue")
@@ -42,7 +49,7 @@ Function ImportSecrets {
         [parameter(Mandatory = $true)]
         [string] $KeyVaultName, 
         [parameter(Mandatory = $true)]
-        [string] $FileName,
+        [System.IO.FileInfo] $FileName,
         [parameter(Mandatory = $false)]
         [string] $Description
     );
@@ -149,7 +156,6 @@ Function ListSecrets {
 
 if ($ListSecrets) {
     ListSecrets -KeyVaultName $KeyVault
-    Exit-PSSession
 }
 elseif ($ExportSecrets) {
     ExportSecrets -KeyVaultName $KeyVault -FileName $ExportSecrets 
